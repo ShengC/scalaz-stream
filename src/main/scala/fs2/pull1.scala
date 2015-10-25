@@ -40,7 +40,17 @@ private[fs2] trait pull1 {
   /** Await the next available element from the input, or `None` if the input is exhausted. */
   def await1Option[F[_],I]: Handle[F,I] => Pull[F,Nothing,Option[Step[I,Handle[F,I]]]] =
     h => h.await1.map(Some(_)) or Pull.pure(None)
-
+    
+  /** Finds the first element from the input for which the given partial function is defined, and applies the partial function to it. */  
+  def collectFirst[F[_], I, O](pf: PartialFunction[I, O]): Handle[F, I] => Pull[F,Nothing,Option[O]] = 
+    _.await.optional flatMap {
+      case None => Pull.pure(None)
+      case Some(chunk #: h) => chunk.indexWhere(pf.isDefinedAt) match {
+        case Some(i) => Pull.pure(Some(pf.apply(chunk(i))))
+        case None    => collectFirst(pf)(h)
+      }
+    }
+    
   /** Copy the next available chunk to the output. */
   def copy[F[_],I]: Handle[F,I] => Pull[F,I,Handle[F,I]] =
     h => h.await flatMap { case chunk #: h => Pull.output(chunk) >> Pull.pure(h) }
@@ -57,6 +67,13 @@ private[fs2] trait pull1 {
   def fetchN[F[_],I](n: Int): Handle[F,I] => Pull[F,Nothing,Handle[F,I]] =
     h => awaitN(n)(h) map { case buf #: h => buf.reverse.foldLeft(h)(_ push _) }
 
+  /** Return the first element of the input `Handle`, is nonempty */
+  def head[F[_],I]: Handle[F,I] => Pull[F,Nothing,Option[I]] =
+    _.await.optional.flatMap {
+      case None => Pull.pure(None)
+      case Some(c #: h) => if (c.isEmpty) head(h) else Pull.pure(Some(c(0)))
+    }
+    
   /** Return the last element of the input `Handle`, if nonempty. */
   def last[F[_],I]: Handle[F,I] => Pull[F,Nothing,Option[I]] = {
     def go(prev: Option[I]): Handle[F,I] => Pull[F,Nothing,Option[I]] =

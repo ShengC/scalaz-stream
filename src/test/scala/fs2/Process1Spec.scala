@@ -67,6 +67,16 @@ object Process1Spec extends Properties("process1") {
     true
   }
 
+  property("collectFirst") = forAll { (s: PureStream[Int], n: SmallNonnegative) => 
+    val pf: PartialFunction[Int, Int] = { case i if i % (n.get + 1) == 0 => i * i }
+    s.get.pipe(collectFirst(pf)) ==? Vector(run(s.get).collectFirst(pf))
+  }
+  
+  property("head") = forAll { (s: PureStream[Int]) =>
+    val shouldCompile = s.get.head
+    s.get.pipe(head) ==? Vector(run(s.get).headOption)
+  }
+  
   property("last") = forAll { (s: PureStream[Int]) =>
     val shouldCompile = s.get.last
     s.get.pipe(last) ==? Vector(run(s.get).lastOption)

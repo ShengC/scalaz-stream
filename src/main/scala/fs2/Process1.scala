@@ -19,7 +19,11 @@ object process1 {
   /** Output all chunks from the input `Handle`. */
   def chunks[F[_],I](implicit F: NotNothing[F]): Handle[F,I] => Pull[F,Chunk[I],Handle[F,I]] =
     h => h.await flatMap { case chunk #: h => Pull.output1(chunk) >> chunks.apply(h) }
-
+    
+  /** Finds the first element from the input for which the given partial function is defined, and applies the partial function to it. */     
+  def collectFirst[F[_],I,O](pf: PartialFunction[I,O])(implicit F: NotNothing[F]): Handle[F,I] => Pull[F,Option[O],Handle[F,O]] = 
+    h => Pull.collectFirst(pf)(h) flatMap { o => Pull.output1(o) >> Pull.done }
+    
   /** Output a transformed version of all chunks from the input `Handle`. */
   def mapChunks[F[_],I,O](f: Chunk[I] => Chunk[O])(implicit F: NotNothing[F])
   : Handle[F,I] => Pull[F,O,Handle[F,I]]
@@ -39,7 +43,11 @@ object process1 {
   /** Emit inputs which match the supplied predicate to the output of the returned `Pull` */
   def filter[F[_], I](f: I => Boolean)(implicit F: NotNothing[F]): Handle[F,I] => Pull[F,I,Handle[F,I]] =
     h => h.await flatMap { case chunk #: h => Pull.output(chunk filter f) >> filter(f).apply(h) }
-
+    
+  /** Return the first element of the input `Handle`, is nonempty */
+  def head[F[_], I](implicit F: NotNothing[F]): Handle[F,I] => Pull[F,Option[I],Handle[F,I]] = 
+    h => Pull.head.apply(h).flatMap { o => Pull.output1(o) >> Pull.done }
+    
   /** Write all inputs to the output of the returned `Pull`. */
   def id[F[_],I](implicit F: NotNothing[F]): Handle[F,I] => Pull[F,I,Handle[F,I]] =
     Pull.echo[F,I]
